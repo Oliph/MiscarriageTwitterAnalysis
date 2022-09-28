@@ -1,11 +1,22 @@
 import os
+import importlib
 import sys
 from datetime import datetime, timedelta
 
-from mongo_utils import mongo_utils
 from twitter_search import TweetSearchUtil
 
+
+import config
+
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from mongo_utils import mongo_utils
+
+
+cred_path = os.path.join(os.path.dirname(__file__), "../credentials.py")
+spec = importlib.util.spec_from_file_location("credentials", cred_path)
+credentials = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(credentials)
+mongodb_credentials = credentials.mongodb_credentials()
 
 # for testing purpose limited these are limited now
 MAX_TWEETS_RETRIEVED = 500
@@ -34,14 +45,13 @@ def search_twitter(query, date=None):
     return tweets
 
 
-def insert_tweets_mongo(tweets, source, col_name):
+def insert_tweets_mongo(tweets, col_name):
     mydb = mongo_utils.get_mongo_db()
     tweets_col = mydb[col_name]
 
     for t in tweets:
         # Set the twitter id as the mongo id
         t["_id"] = t["id"]
-        t["source"] = source
     print(len(tweets))
     tweets_col.insert_many(tweets)
 
@@ -50,9 +60,13 @@ def main():
     # Iterate through collection
     mydb = mongo_utils.get_mongo_db()
     col_tweets = mydb['tweets_miscarriage_2022']
+    query = config.keywords
+    query = " OR ".join(query)
+    print(query)
 
     # get only the documents who were not searched for
-    tweets = search_twitter(query, post_date)
+    tweets = search_twitter(query)
+    print(tweets)
     insert_tweets_mongo(tweets, news_id, col_tweets)
 
 

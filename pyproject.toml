@@ -8,6 +8,7 @@ authors = ["Oliph <olivier.philippe@gmail.com>"]
 python = "^3.10"
 searchtweets-v2 = "^1.1.1"
 tenacity = "^8.1.0"
+pymongo = "^4.2.0"
 
 [tool.poetry.dev-dependencies]
 
