@@ -11,8 +11,9 @@ logger = logging.getLogger(__name__)
 
 class TweetSearchUtil:
     def __init__(
-        self, path_cred, yaml_key="search_tweets_api", logging_level=logging.INFO
-    ) -> None:
+            self, path_cred, yaml_key="search_tweets_api",
+            logging_level=logging.INFO,
+            ) -> None:
 
         logging.basicConfig(level=logging_level)
         self.twitter_cred = searchtweets.load_credentials(
@@ -107,12 +108,11 @@ class TweetSearchUtil:
             granularity=None,
             stringify=stringify,
         )
-
         tweets_data = self._make_tweets_request(rule, results_total)
 
         return tweets_data[0]["data"]
 
-    @retry(
+    @ retry(
         wait=wait_exponential(multiplier=1, min=4, max=60 * 10),
         stop=stop_after_attempt(10),
         after=after_log(logger, logging.INFO),

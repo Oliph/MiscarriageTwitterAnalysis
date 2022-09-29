@@ -5,10 +5,11 @@ description = ""
 authors = ["Oliph <olivier.philippe@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.8"
 searchtweets-v2 = "^1.1.1"
 tenacity = "^8.1.0"
 pymongo = "^4.2.0"
+numpy = "^1.23.3"
 
 [tool.poetry.dev-dependencies]
 
