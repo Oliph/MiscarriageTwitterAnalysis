@@ -1,75 +1,140 @@
-import importlib
 import os
 import sys
+import yaml
+import logging
+import importlib
+
 from datetime import datetime, timedelta
 
-import config
-from twitter_search import TweetSearchUtil
+from searchtweets import ResultStream, gen_request_parameters, load_credentials
+from tenacity import after_log, retry, stop_after_attempt, wait_exponential
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from mongo_utils import mongo_utils
 
+logger = logging.getLogger(__name__)
 
-cred_path = os.path.join(os.path.dirname(__file__), "../credentials.py")
-spec = importlib.util.spec_from_file_location("credentials", cred_path)
-credentials = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(credentials)
-mongodb_credentials = credentials.mongodb_credentials()
+# Load config and credentials
 
-# for testing purpose limited these are limited now
-MAX_TWEETS_RETRIEVED = 10000
-# MAX_CLAIMS_PER_DAY = 5
+config_all = yaml.safe_load(open("../config_files/config.yaml"))
+
+mongo_cred_path = os.path.join(
+    os.path.dirname(__file__),
+    "../config_files",
+    config_all["mongodb_params"]["mongodb_cred_filename"],
+)
+mongodb_credentials = yaml.safe_load(open(mongo_cred_path))["mongodb_credentials"]
+
+twitter_cred_path = os.path.join(
+    os.path.dirname(__file__),
+    "../config_files",
+    config_all["research_params"]["twitter_cred_filename"],
+)
+twitter_credentials = yaml.safe_load(open(twitter_cred_path))["search_tweets_api"]
 
 
-def search_twitter(query, date=None, days_before=0, days_after=0):
-    tsu = TweetSearchUtil("twittercredentials.yaml")
-    tweet_fields = "author_id,conversation_id,in_reply_to_user_id,referenced_tweets,created_at,geo,id,lang,public_metrics,text"
-    if date is None:
-        tweets = tsu.search_tweets_by_query(
-            query,
-            tweet_fields,
-            results_total=MAX_TWEETS_RETRIEVED,
+@retry(
+    wait=wait_exponential(multiplier=1, min=4, max=60 * 10),
+    stop=stop_after_attempt(10),
+    after=after_log(logger, logging.INFO),
+)
+def _search_twitter(rule, max_tweets, output_format, twitter_credentials):
+    rs = ResultStream(
+        request_parameters=rule,
+        max_tweets=max_tweets,
+        output_format="a",
+        **twitter_credentials
+    )
+    print(rs)
+    results = rs.stream()
+    for i in results:
+        yield i
+
+
+def search_twitter(twitter_credentials, rule_params):
+    def prepare_rule(params):
+        for k in params:
+            if isinstance(params[k], list):
+                if len(params[k]) > 0:
+                    if k != "query":
+                        params[k] = ",".join(params[k])
+                    else:
+                        params[k] = " OR ".join(params[k])
+                else:
+                    params[k] = None
+        return params
+
+    def prepare_time(params):
+
+        if params["date"] is not None and params["since_id"] is None:
+
+            date = datetime.strptime(params["date"], "%d-%m-%Y")
+
+            start_time = date - timedelta(days=params["days_before"])
+            end_time = date + timedelta(days=params["days_after"])
+            params["start_time"] = start_time.strftime("%Y-%m-%d")
+            params["end_time"] = end_time.strftime("%Y-%m-%d")
+        else:
+            pass
+        return params
+
+    def delete_uneeded_keys(params):
+        del (
+            params["date"],
+            params["days_before"],
+            params["days_after"],
+            params["twitter_cred_filename"],
+            params["max_tweets"],
+            params["output_format"],
         )
-    else:
-        start_date = date - timedelta(days=days_before)
-        end_date = date + timedelta(days=days_after)
-        tweets = tsu.search_tweets_by_query(
-            query,
-            tweet_fields=tweet_fields,
-            results_total=MAX_TWEETS_RETRIEVED,
-            start_time=start_date.strftime("%Y-%m-%d %H:%M"),
-            end_time=end_date.strftime("%Y-%m-%d %H:%M"),
-        )
+        return params
 
-    return tweets
+    max_tweets = rule_params["max_tweets"]
+    output_format = rule_params["output_format"]
+    rule_params = prepare_rule(rule_params)
+    rule_params = prepare_time(rule_params)
+    rule_params = delete_uneeded_keys(rule_params)
+
+    rule = gen_request_parameters(**rule_params)
+    return _search_twitter(
+        rule,
+        max_tweets,
+        output_format=output_format,
+        twitter_credentials=twitter_credentials,
+    )
 
 
-def insert_tweets_mongo(tweets, collection):
+def insert_tweets_mongo(tweet, collection):
 
-    for t in tweets:
-        # Set the twitter id as the mongo id
-        t["_id"] = t["id"]
-    print(len(tweets))
-    collection.insert_many(tweets, ordered=False)
+    collection.update_one({"id": tweet["id"]}, {"$set": tweet}, upsert=True)
+
+
+# # TODO write an aggregate rather than loop but not really important
+# def get_ref_tweet_list(col_tweets):
+#     """
+#     Get the original tweet id when it is a RT to replace the truncatedtry/except
+#     """
+#     set_unique_ids = set()
+#     for tweet in col_tweets.find(
+#         {"referenced_tweets": {"$elemMatch": {"type": "retweeted"}}}
+#     ):
+#         set_unique_ids.add(tweet["referenced_tweets"][0]["id"])
+#     return set_unique_ids
 
 
 def main():
-    # Iterate through collection
     mydb = mongo_utils.get_mongo_db()
-    col_tweets = 'tweets_miscarriage_2022'
-    col_tweets = mydb[col_tweets]
-    query = config.keywords
-    query = " OR ".join(query)
-    print(query)
-    date = '29/09/2022'
-    date = datetime.strptime(date, "%d/%m/%Y")
-    days_before = 4
-    days_after = 0
+    col_tweet_name = config_all["mongodb_params"]["col_name"]
+    col_tweets = mydb[col_tweet_name]
+    col_tweets.create_index([("id", 1)], unique=True)
+    tweets = search_twitter(
+        twitter_credentials, rule_params=config_all["research_params"]
+    )
+    for tweet in tweets:
+        insert_tweets_mongo(tweet, col_tweets)
 
-    # get only the documents who were not searched for
-    tweets = search_twitter(query=query, date=date,
-                            days_before=days_before, days_after=days_after)
-    insert_tweets_mongo(tweets, col_tweets)
+    # set_unique_ids = get_ref_tweet_list(col_tweets)
+    # print(len(set_unique_ids))
 
 
 if __name__ == "__main__":
