@@ -56,12 +56,11 @@ def search_twitter(twitter_credentials, rule_params):
         for k in params:
             if isinstance(params[k], list):
                 if len(params[k]) > 0:
-                    if k != "query":
+                    if k != "query" and k != "additional_query":
                         params[k] = ",".join(params[k])
-                    else:
-                        params[k] = " OR ".join(params[k])
                 else:
                     params[k] = None
+        params['query']= "({})".format(" OR ".join(params['query'])) +  ' ' + ' '.join(params['additional_query'])
         return params
 
     def prepare_time(params):
@@ -70,10 +69,17 @@ def search_twitter(twitter_credentials, rule_params):
 
             date = datetime.strptime(params["date"], "%d-%m-%Y")
 
-            start_time = date - timedelta(days=params["days_before"])
-            end_time = date + timedelta(days=params["days_after"])
-            params["start_time"] = start_time.strftime("%Y-%m-%d")
-            params["end_time"] = end_time.strftime("%Y-%m-%d")
+            if params['days_before'] == 0 and params['days_after'] == 0:
+                start_time = date - timedelta(minutes=1)
+                end_time = date + timedelta(hours=23, minutes=59)
+            else:
+                start_time = date - timedelta(days=params["days_before"])
+                end_time = date + timedelta(days=params["days_after"], hours=23, minutes=59)
+
+            params["start_time"] = start_time.strftime("%Y-%m-%d %H:%M")
+            print(params['start_time'])
+            params["end_time"] = end_time.strftime("%Y-%m-%d %H:%M")
+            print(params['end_time'])
         else:
             pass
         return params
@@ -86,6 +92,8 @@ def search_twitter(twitter_credentials, rule_params):
             params["twitter_cred_filename"],
             params["max_tweets"],
             params["output_format"],
+            params['additional_query']
+
         )
         return params
 

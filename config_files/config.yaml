@@ -1,6 +1,6 @@
 mongodb_params:
   mongodb_cred_filename: mongodb_credentials.yaml
-  col_name: 'tweets_miscarriage_2022_bis'
+  col_name: 'tweets_miscarriage_2022_last'
 
 research_params:
   # yaml_key: search_tweets_v2
@@ -8,16 +8,17 @@ research_params:
   max_tweets: 100000
   results_per_call: 500
   date: '28-09-2022'
-  days_before: 1
-  days_after: 1
+  days_before: 0
+  days_after: 0
   since_id: null
   # since_id: '1575199451903594497'
-  query: ['msicarriage', 'abortion', 'termination', 'feticide', 'foeticide', 'aborticide',
+  query: ['miscarriage', 'abortion', 'termination', 'feticide', 'foeticide', 'aborticide',
           'stillbirth', '"early pregnancy loss"', '"fetal homicide"', '"child destruction"']
-  expansions: ['geo.place_id','attachments.media_keys', 'referenced_tweets.id']
+  additional_query: ['-is:retweet']
+  expansions: ['geo.place_id','attachments.media_keys', 'referenced_tweets.id', 'author_id']
   tweet_fields: ["author_id", "conversation_id", "in_reply_to_user_id", 'attachments',
               "referenced_tweets", "created_at", "geo", "id", "lang", "public_metrics", "text"]
-  user_fields: []
+  user_fields: ['username', 'created_at', 'location']
   media_fields: ['type', 'url']
   place_fields: ['country', 'full_name']
   granularity: null
