@@ -16,10 +16,16 @@ jupyterlab = "^3.4.7"
 textblob = "^0.17.1"
 wordcloud = "^1.8.2"
 pyLDAvis = "^3.3.1"
+searchtweets-v2 = "^1.1.1"
+pymongo = "^4.2.0"
+numpy = "^1.23.3"
+nltk = "^3.7"
+missingno = "^0.5.1"
 
 [tool.poetry.dev-dependencies]
 python-lsp-server = "^1.5.0"
-missingno = "^0.5.1"
+python-lsp-black = "^1.2.1"
+
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

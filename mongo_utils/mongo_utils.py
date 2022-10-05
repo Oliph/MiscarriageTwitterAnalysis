@@ -3,12 +3,15 @@ import importlib.util
 import os
 
 import pymongo
+import yaml
 
-cred_path = os.path.join(os.path.dirname(__file__), "../credentials.py")
-spec = importlib.util.spec_from_file_location("credentials", cred_path)
-credentials = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(credentials)
-mongodb_credentials = credentials.mongodb_credentials()
+config_all = yaml.safe_load(open("../config_files/config.yaml"))
+mongo_cred_path = os.path.join(
+    os.path.dirname(__file__),
+    "../config_files",
+    config_all["mongodb_params"]["mongodb_cred_filename"],
+)
+mongodb_credentials = yaml.safe_load(open(mongo_cred_path))["mongodb_credentials"]
 
 # Global client
 global _mongoclient
@@ -45,6 +48,5 @@ def get_client():
             passw = mongodb_credentials["DB_MONGO_PASS"]
         except KeyError:
             passw = None
-        _mongoclient = pymongo.MongoClient(
-            host, port, username=user, password=passw)
+        _mongoclient = pymongo.MongoClient(host, port, username=user, password=passw)
     return _mongoclient
