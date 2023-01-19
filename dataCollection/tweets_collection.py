@@ -77,9 +77,7 @@ def search_twitter(twitter_credentials, rule_params):
                 end_time = date + timedelta(days=params["days_after"], hours=23, minutes=59)
 
             params["start_time"] = start_time.strftime("%Y-%m-%d %H:%M")
-            print(params['start_time'])
             params["end_time"] = end_time.strftime("%Y-%m-%d %H:%M")
-            print(params['end_time'])
         else:
             pass
         return params
@@ -135,11 +133,15 @@ def main():
     col_tweet_name = config_all["mongodb_params"]["col_name"]
     col_tweets = mydb[col_tweet_name]
     col_tweets.create_index([("id", 1)], unique=True)
-    tweets = search_twitter(
-        twitter_credentials, rule_params=config_all["research_params"]
-    )
-    for tweet in tweets:
-        insert_tweets_mongo(tweet, col_tweets)
+    rule_params = config_all['research_params']
+    dates_to_parse = rule_params['date']
+    for date in dates_to_parse:
+        rule_params['date'] = date
+        tweets = search_twitter(
+            twitter_credentials, rule_params=rule_params.copy()
+        )
+        for tweet in tweets:
+            insert_tweets_mongo(tweet, col_tweets)
 
     # set_unique_ids = get_ref_tweet_list(col_tweets)
     # print(len(set_unique_ids))
